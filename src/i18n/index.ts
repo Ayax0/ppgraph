@@ -12,7 +12,7 @@ const CATALOGUES: Record<Locale, Messages> = { de, en };
 export const LOCALES = Object.keys(CATALOGUES) as Locale[];
 
 /** The report language when nothing selects one. An i18n fact, so it lives with the catalogues. */
-export const DEFAULT_LOCALE: Locale = 'de';
+export const DEFAULT_LOCALE: Locale = 'en';
 
 /**
  * A language named in its own language — "Deutsch", not "German". Derived rather than tabled, so a

@@ -166,7 +166,7 @@ Nothing is required — anything you leave out is discovered or asked for.
 | Option | |
 |---|---|
 | `--out <path>` | target directory |
-| `--locale <de\|en>` | language of `graph.html` (default `de`); the other files are always English |
+| `--locale <de\|en>` | language of `graph.html` (default `en`); the other files are always English |
 | `--label <text>` | what the report calls this tenant |
 | `--site-name <url>=<name>` | a friendlier name for one site; repeatable |
 | `--open` | open the report when finished |
