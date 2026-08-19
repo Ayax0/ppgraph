@@ -1,0 +1,5 @@
+# Build output — regenerate with `pnpm build`. The published tarball carries it via `files`.
+dist/
+
+# Dependencies
+node_modules/

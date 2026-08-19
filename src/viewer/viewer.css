@@ -1,0 +1,769 @@
+/* One colour per TECHNOLOGY, not per role: Power Automate blue, Power Apps purple, SharePoint teal,
+   Dataverse green. A mark's colour therefore answers "which product is this" before anything is
+   read, and the same four colours mean the same four things in the legend, the diagram and the
+   chips in the side panel.
+
+   The four are the product colours themselves, moved only as far as the checks demanded — the
+   largest deviation is SharePoint teal, ΔE 3.7 from #038387; Power Automate blue lands 0.4 from
+   #0066ff and Dataverse green 0.1 from #107c10. Validated all-pairs in BOTH modes (worst CVD pair
+   ΔE 15.0 light / 8.3 dark, deutan; every slot ≥ 3:1 against its surface), and each dark step is
+   its own step of the same hue rather than a flipped light one.
+
+   Chrome — focus rings, checkboxes, links — deliberately uses NO product colour. If blue meant both
+   "Power Automate" and "this control has focus", the legend would be a lie. */
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+  --hairline: #e1e0d9;
+  --ring: rgba(11, 11, 11, 0.10);
+  --shadow: 0 1px 2px rgba(11, 11, 11, 0.06), 0 8px 24px rgba(11, 11, 11, 0.06);
+  --flow: #0365fd;
+  --app: #792f79;
+  --sharepoint: #028f94;
+  --dataverse: #0d7c12;
+  --critical: #d03b3b;
+  --warning: #fab219;
+  --tint: 0.14;
+  /* Overridden by --brand-color; the ink default keeps an unbranded band neutral. */
+  --brand: var(--ink);
+  --on-brand: var(--surface);
+  /* One geometry for every header control — height, radius, padding, type size — set once rather
+     than per rule, where they drift apart by a pixel. */
+  --ctl-h: 34px;
+  --ctl-r: 9px;
+  --ctl-fs: 13px;
+  --ctl-px: 11px;
+  --ctl-focus: var(--brand);
+  /* The panel small shapes. 7px on a 24px chip is the same corner as 9px on a 34px control —
+     the proportion is the decision, not the number. */
+  --chip-r: 7px;
+  --chip-fs: 12.5px;
+  --chip-px: 9px;
+  /* One radius ladder: small shapes, controls, floating surfaces. */
+  --r-lg: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --hairline: #2c2c2a;
+    --ring: rgba(255, 255, 255, 0.10);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --flow: #0365fd;
+    --app: #9649a7;
+    --sharepoint: #0d9297;
+    --dataverse: #1e851f;
+    --tint: 0.22;
+    /* Its own dark step, like every other colour here: #d03b3b measures 3.62:1
+       on the dark surface, this one 5.81:1. --warning already clears 9:1 and stays. */
+    --critical: #f16a6a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --plane: #0d0d0d;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-muted: #898781;
+  --hairline: #2c2c2a;
+  --ring: rgba(255, 255, 255, 0.10);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --flow: #0365fd;
+  --app: #9649a7;
+  --sharepoint: #0d9297;
+  --dataverse: #1e851f;
+  --tint: 0.22;
+    /* Its own dark step, like every other colour here: #d03b3b measures 3.62:1
+       on the dark surface, this one 5.81:1. --warning already clears 9:1 and stays. */
+    --critical: #f16a6a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/*
+ * Branded, the HEADER is the band: logo and title on the left, the controls on the right, one row.
+ * That was not possible while eleven legend toggles lived up here — now that filtering is one
+ * button, the controls fit in the height the logo needs anyway and the second row disappears.
+ *
+ * The controls turn translucent over the brand colour instead of keeping their surface fill, which
+ * is what stops them reading as grey chips floating on orange. The overlay is mixed FROM the ink,
+ * so it darkens on a light brand and lightens on a dark one without a second decision.
+ */
+.brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.brand-logo { height: 32px; width: auto; max-width: 200px; display: block; flex: none; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.35; min-width: 0; }
+.brand-text strong { font-size: 18px; font-weight: 700; letter-spacing: -0.015em; }
+.brand-text span { font-size: 12.5px; opacity: 0.92; }
+
+header {
+  padding: 9px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+}
+header.branded {
+  --ctl-focus: var(--on-brand);
+  background: var(--brand);
+  color: var(--on-brand);
+  border-bottom-color: transparent;
+}
+header.branded .controls input[type="search"],
+header.branded .controls select,
+header.branded .controls button,
+header.branded .controls #filters > summary {
+  color: var(--on-brand);
+  background: rgba(127, 127, 127, 0.22);
+  background: color-mix(in srgb, var(--on-brand) 16%, transparent);
+  border-color: rgba(127, 127, 127, 0.35);
+  border-color: color-mix(in srgb, var(--on-brand) 32%, transparent);
+}
+header.branded .controls input[type="search"]:hover,
+header.branded .controls select:hover,
+header.branded .controls button:hover,
+header.branded .controls #filters > summary:hover {
+  border-color: color-mix(in srgb, var(--on-brand) 60%, transparent);
+  background: color-mix(in srgb, var(--on-brand) 26%, transparent);
+}
+header.branded .controls button:active,
+header.branded .controls #filters > summary:active {
+  background: color-mix(in srgb, var(--on-brand) 34%, transparent);
+}
+header.branded .controls input[type="search"]::placeholder { color: var(--on-brand); opacity: 0.65; }
+header.branded .field-icon { color: var(--on-brand); opacity: 0.7; }
+
+/*
+ * A select colour applies to its OPTIONS too, and those are drawn by the browser on its own popup
+ * surface — not on the band. Inheriting the band ink therefore painted white text on a white list.
+ * They are put back on the page surface, which also keeps them right in dark mode.
+ */
+header.branded .controls select option {
+  color: var(--ink);
+  background-color: var(--surface);
+}
+
+/* The count chip carries plane and hairline colours, which are surfaces — on the band that reads
+   as a black blob. It follows the ink like every other control up here. */
+header.branded .controls .count {
+  color: var(--on-brand);
+  background: rgba(127, 127, 127, 0.3);
+  background: color-mix(in srgb, var(--on-brand) 26%, transparent);
+}
+/* The menu itself drops back onto the normal surface — it hangs over the diagram, not the band. */
+header.branded .filter-menu { color: var(--ink-2); }
+
+/* Unbranded, the title and its meta share one line with the controls beside them. */
+h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+h1 small { font-size: 12.5px; font-weight: 500; color: var(--ink-muted); letter-spacing: 0; }
+h1 small::before { content: " · "; }
+
+/*
+ * One row: identity left, the interactive block right — and the interactive block sits in the
+ * same place whether or not there is a brand band above it.
+ *
+ * `margin-left: auto` is what pins it right; without it the controls follow the title and the
+ * header reads as a pile. It wraps internally only when the window genuinely cannot hold the row.
+ */
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+
+/*
+ * The filter menu. A <details> rather than a scripted popover: it opens on click and on Enter, it
+ * is reachable by keyboard, and it needs no open/close code that could get out of step with the
+ * toggles inside it. `position: relative` is load-bearing — the menu is absolute, so without it
+ * the popup hangs off the page rather than off its button.
+ */
+#filters { position: relative; }
+#filters > summary { list-style: none; }
+#filters > summary::-webkit-details-marker { display: none; }
+
+.filter-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 268px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.filter-menu .toggle { border: 0; background: none; padding: 3px 2px; }
+.filter-menu .toggle:hover { color: var(--ink); }
+.filter-menu .group-title { margin: 6px 0 2px; }
+.filter-menu .group-title:first-child { margin-top: 0; }
+.group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-muted); margin-left: 6px; }
+.controls.legend .group-title:first-child { margin-left: 0; }
+
+/* The line samples in the edge toggles are the legend — same stroke as the diagram draws. */
+.line { width: 22px; height: 0; flex: none; border-top-width: 2px; border-top-style: solid; border-color: var(--ink-muted); }
+.line-trigger { border-color: var(--flow); }
+.line-write { border-top-width: 1.5px; }
+.line-read { border-top-style: dashed; border-top-width: 1.5px; }
+.line-link { border-color: var(--app); border-top-style: dashed; }
+.line-contains { border-color: var(--sharepoint); border-top-style: dotted; border-top-width: 1px; }
+.line-mirror { border-color: var(--ink-muted); border-top-style: dotted; border-top-width: 1px; }
+
+#unfocus { display: none; }
+body[data-focus="1"] #unfocus { display: inline-flex; }
+/* Dimmed as a WHOLE control, wrapper included — the chevron is drawn on the wrapper, so dimming
+   only the <select> left a crisp caret hanging beside a faded box. */
+body[data-focus="1"] .select-field,
+body[data-focus="1"] .controls.legend { opacity: 0.4; pointer-events: none; }
+
+/* What a button and a toggle wear ANYWHERE on the page — the side panel chips, the rows inside
+   the filter menu. The header overrides the geometry below; everything else keeps this. */
+button, .toggle {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--plane);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ctl-r);
+  padding: 5px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+button:hover, .toggle:hover { border-color: var(--ink-muted); }
+.toggle input { accent-color: var(--ink-2); margin: 0; }
+.toggle[data-off="true"] { opacity: 0.45; }
+
+/*
+ * ONE control in five shapes.
+ *
+ * A search field, a picker, a menu button, a text button and an icon button have to read as one
+ * family, or a header looks assembled rather than designed. Before this they were five: the
+ * picker wore the browser own arrow while the filter drew a text caret, the heights came from
+ * whatever each rule padded to, and hover meant something different on each one.
+ *
+ * So the box comes from the four --ctl- tokens, every state is declared once for all of them,
+ * and the two "opens something" controls draw the SAME chevron.
+ */
+.controls input[type="search"],
+.controls select,
+.controls button,
+.controls #filters > summary {
+  font: inherit;
+  font-size: var(--ctl-fs);
+  height: var(--ctl-h);
+  padding: 0 var(--ctl-px);
+  color: var(--ink-2);
+  background: var(--plane);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ctl-r);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.controls button,
+.controls #filters > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+.controls input[type="search"], .controls select { color: var(--ink); }
+.controls select { cursor: pointer; }
+
+/* Hover and press are the same gesture everywhere: the border steps up, the fill lifts a touch. */
+.controls input[type="search"]:hover,
+.controls select:hover,
+.controls button:hover,
+.controls #filters > summary:hover {
+  border-color: var(--ink-muted);
+  background: color-mix(in srgb, var(--ink) 4%, var(--plane));
+}
+.controls button:active,
+.controls #filters > summary:active { background: color-mix(in srgb, var(--ink) 9%, var(--plane)); }
+
+/* The ring has to be visible on whatever it lands on, so the band overrides --ctl-focus. */
+input[type="search"]:focus-visible, select:focus-visible,
+button:focus-visible, .toggle:focus-within,
+#filters > summary:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+
+/* The search field says what it is before its placeholder is read. */
+.field { position: relative; display: inline-flex; align-items: center; }
+.field-icon { position: absolute; left: 11px; display: flex; color: var(--ink-muted); pointer-events: none; }
+.controls input[type="search"] { min-width: 210px; padding-left: 32px; }
+.controls input[type="search"]::placeholder { color: var(--ink-muted); }
+
+/*
+ * One chevron, drawn twice.
+ *
+ * The native <select> arrow belongs to the browser, not to this page: a different shape on every
+ * platform, and on a colour band it keeps its own dark ink while everything around it turns
+ * translucent. Suppressing it and drawing the caret ourselves is what makes the picker and the
+ * filter button read as the same kind of thing — both open a list, so both wear one mark.
+ */
+.controls select { appearance: none; -webkit-appearance: none; max-width: 220px; padding-right: 30px; }
+.select-field::after,
+#filters > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  opacity: 0.55;
+  transform: translateY(-2px) rotate(45deg);
+}
+.select-field::after { position: absolute; right: 13px; top: 50%; margin-top: -5px; pointer-events: none; }
+#filters[open] > summary::after { transform: translateY(1px) rotate(225deg); }
+
+/* The count sits INSIDE a control, so it is a filled pill rather than a second bordered box. */
+.controls .count {
+  margin: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  background: rgba(127, 127, 127, 0.16);
+  background: color-mix(in srgb, var(--ink) 11%, transparent);
+}
+
+/* Square, and exactly as tall as the text buttons beside them. */
+.controls button.icon { padding: 0; width: var(--ctl-h); flex: none; justify-content: center; }
+.controls button.icon svg { display: block; }
+
+.swatch { width: 10px; height: 10px; border-radius: 3px; border: 1px solid; flex: none; }
+
+main { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
+
+/* The panel scrolls, the key does not: it is the one thing that must be readable at any scroll
+   position and whatever node happens to be selected. */
+#side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--hairline);
+}
+#panel { flex: 1; overflow-y: auto; }
+.legend-key {
+  flex: none;
+  border-top: 1px solid var(--hairline);
+  padding: 10px 18px 12px;
+}
+.legend-key h3 {
+  margin: 0 0 7px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-muted);
+}
+.legend-key ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.legend-key ul + ul { margin-top: 7px; padding-top: 7px; border-top: 1px dashed var(--hairline); }
+/* flex:none on the samples is load-bearing: without it a long label shrinks the swatch or the
+   line instead of itself, and a legend whose samples are the wrong length explains nothing. */
+.legend-key li { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.legend-key li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/*
+ * The canvas is a surface you drag, not a document you read from — so no selection starts here.
+ * Without this, panning drags a text selection across the whole page, which is what a browser does
+ * with a press-and-move by default.
+ *
+ * Scoped to the canvas on purpose: the side panel and the table view stay fully selectable, and
+ * those are where the text worth copying lives. What it costs is selecting a label straight off the
+ * diagram — the same name is one click away in the panel, and untruncated there.
+ */
+#canvas { background: var(--surface); position: relative; min-width: 0; -webkit-user-select: none; user-select: none; }
+#canvas > #scene { width: 100%; height: 100%; display: block; cursor: grab; }
+#canvas > #scene.dragging { cursor: grabbing; }
+
+/* Minimap. Draws the solution frames rather than the nodes: 500 rectangles at this size are a grey
+   smear, while two dozen frames keep the shape of the layout recognisable. */
+#minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 190px;
+  height: 132px;
+  background: var(--plane);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  touch-action: none;
+  opacity: 0.85;
+}
+#minimap:hover { opacity: 1; }
+#minimap .mini-shape { fill: var(--ink-muted); fill-opacity: 0.35; }
+#minimap-view {
+  fill: var(--ink);
+  fill-opacity: 0.08;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-opacity: 0.7;
+}
+
+
+#panel { padding: 16px 18px 24px; }
+#panel h2 { font-size: 15px; margin: 0 0 2px; letter-spacing: -0.01em; line-height: 1.3; }
+#panel p { margin: 4px 0; color: var(--ink-2); }
+#panel a { color: inherit; }
+.kind { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; }
+.sub { font-size: 12.5px; color: var(--ink-muted); }
+.lead { font-size: 13.5px; color: var(--ink); }
+.cond { font-size: 12.5px; color: var(--ink-muted); }
+.cond code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 11.5px; word-break: break-word; }
+
+/* Key facts first, everything else behind a disclosure. */
+.stats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+/* Read, not pressed — so no border and no hover. Before this a stat and a chip were the same
+   box, and a node panel opened with five that look pressable, of which two are. */
+.stat {
+  border: 0;
+  border-radius: var(--chip-r);
+  padding: 4px 10px;
+  font-size: var(--chip-fs);
+  color: var(--ink-2);
+  background: rgba(127, 127, 127, 0.08);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.stat b { color: var(--ink); font-weight: 650; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.actions .chip { margin: 0; text-decoration: none; }
+
+details.sect { border-top: 1px solid var(--hairline); }
+details.sect:first-of-type { margin-top: 12px; }
+details.sect > summary,
+details.step > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+/*
+ * The same caret the header draws, rotating rather than swapping glyph.
+ *
+ * The old triangles are font-dependent — different weights and optical sizes across the system
+ * fonts — and they carry different visual mass, so the row shifted a hair on every open. A
+ * rotated border box is one shape, follows currentColor, and can be animated.
+ */
+details.sect > summary::before,
+details.step > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 6px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  opacity: 0.55;
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+}
+details.sect[open] > summary::before,
+details.step[open] > summary::before { transform: rotate(45deg); }
+details.sect > summary::-webkit-details-marker,
+details.step > summary::-webkit-details-marker { display: none; }
+/* Full-bleed hover: the whole row is the hit target, so the whole row lights up. The negative
+   margin matches the #panel padding, which is what lets the band reach the panel edges. */
+details.sect > summary {
+  padding: 10px 18px;
+  margin: 0 -18px;
+  /* 11.5/0.05 rather than 12/0.06: the longest German section title measured 265px against a
+     266px budget at the old metrics — a title that fits by one pixel does not fit. */
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-weight: 600;
+  align-items: center;
+  flex-wrap: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+/* The title takes the slack, so a long one wraps INSIDE the row instead of pushing the count
+   onto a line of its own — the classic auto-margin trap. */
+.sect-title { flex: 1 1 auto; min-width: 0; }
+details.sect > summary:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+details.sect > summary:active { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+details.sect > summary:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: -2px; }
+details.sect > summary:hover, details.step > summary:hover { color: var(--ink); }
+.sect-body { padding-bottom: 12px; }
+/* A number you READ, so it is a filled shape rather than a bordered one — and filled from the
+   ink rather than from --plane, which is LIGHTER than the panel in light mode and DARKER in
+   dark mode, i.e. invisible or a hole. The header fixed this for its own count; this is the
+   same fix on the panel copy. */
+.count {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  background: rgba(127, 127, 127, 0.16);
+  background: color-mix(in srgb, var(--ink) 11%, transparent);
+}
+/* A self-trigger is two facts, not one line: the flow, and the list it writes back into. Stacked,
+   the pair survives any name length — inline, the ↻ orphans between the wrapped halves. */
+.rel-row { margin: 9px 0; }
+.rel-row .loop {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 11px;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* Flow names run long, so a chip has to wrap — which rules out a pill: a two-line 999px radius
+   reads as a broken oval. A 7px rectangle wraps cleanly and matches the rest of the chrome. */
+.chip {
+  font: inherit;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--chip-r);
+  padding: 3px var(--chip-px);
+  margin: 3px 3px 0 0;
+  font-size: var(--chip-fs);
+  line-height: 1.45;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  color: var(--ink-2);
+  background: transparent;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+/* Some chips are <a> (they open the platform), most are <button> (they select a node). Without
+   this the link took its colour from `#panel a`, skipped the hover fill and had no focus ring —
+   two chips side by side in the same row behaving differently. */
+#panel a.chip { color: var(--ink-2); }
+.chip:hover { border-color: var(--ink-muted); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.chip:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.chip:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+/* The dot marks the first line, so it must not ride the flex centre of a wrapped chip. */
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: 6px; }
+
+.rel { margin: 0; padding: 0; list-style: none; }
+.rel li { padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+.rel li:last-child { border-bottom: 0; }
+/* A chip draws its own edge; a hairline under it as well is a border inside a border, which was
+   the noisiest texture in the panel. */
+.rel li:has(> .chip) { border-bottom: 0; padding: 1px 0; }
+/* Label/value rows read as two columns instead of one run-on line. */
+.rel li:not(:has(.chip)) { display: grid; grid-template-columns: minmax(84px, 40%) 1fr; gap: 2px 10px; align-items: baseline; }
+.rel .verb { color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
+
+.cascade { margin: 0; padding-left: 0; list-style: none; font-size: 13px; }
+.cascade ul { list-style: none; padding-left: 9px; margin: 1px 0 3px; border-left: 1px solid var(--hairline); }
+.cascade li { padding: 2px 0 2px 6px; }
+details.step > summary { padding: 2px 0; font-size: 13px; color: var(--ink-2); }
+details.step > summary .count { font-size: 11px; }
+/* Was an inline style in viewer.ts — the only painted markup in the panel, and unthemable. */
+.rel-row .loop strong { color: var(--critical); font-weight: 600; }
+
+/* One edge, one fill. The old border used --ring, a focus token, and the --plane fill is lighter
+   than the panel in light mode and darker in dark — invisible or a hole. Tinting from the status
+   colour itself makes the severity readable before the text is. */
+.banner {
+  border: 0;
+  border-left: 3px solid var(--critical);
+  border-radius: 0 var(--chip-r) var(--chip-r) 0;
+  padding: 9px 12px;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--critical) 9%, var(--surface));
+}
+.banner.warn {
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+.banner + .banner { margin-top: 4px; }
+.banner strong { color: var(--ink); }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+th { color: var(--ink-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--surface); }
+
+#table-view { display: none; overflow: auto; background: var(--surface); padding: 0 4px 40px; }
+body[data-view="table"] #canvas, body[data-view="table"] #side { display: none; }
+body[data-view="table"] main { grid-template-columns: 1fr; }
+body[data-view="table"] #table-view { display: block; }
+
+/* --- graph marks --- */
+.group-box { fill: var(--plane); stroke: var(--hairline); stroke-width: 1; }
+.group-label { fill: var(--ink-muted); font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.block-label { fill: var(--ink-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+
+/*
+ * The solution name written across its own frame while zoomed out. `--zoom` is the current scale,
+ * so dividing by it holds the type at a constant SIZE ON SCREEN however far out the view is; `--fit`
+ * is the largest that still fits inside that particular frame, and the smaller of the two wins.
+ *
+ * It sits in the group layer, which paints below the edges and the nodes — so it is a watermark
+ * behind the content rather than a label on top of it.
+ */
+.group-headline {
+  font-size: min(calc(22px / var(--zoom, 1)), calc(var(--fit, 60) * 1px));
+  fill: var(--ink);
+  fill-opacity: 0.42;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  display: none;
+}
+body[data-detail="low"] .group-headline { display: block; }
+
+.edge { fill: none; stroke: var(--ink-muted); stroke-width: 1.4; opacity: 0.55; }
+.edge.triggers { stroke: var(--flow); stroke-width: 2; opacity: 0.9; }
+.edge.reads { stroke-dasharray: 3 3; opacity: 0.4; }
+.edge.uses { stroke: var(--app); stroke-dasharray: 1 4; stroke-linecap: round; stroke-width: 2; opacity: 0.75; }
+.edge.calls { stroke: var(--app); stroke-dasharray: 6 4; opacity: 0.8; }
+.edge.contains { stroke: var(--sharepoint); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.5; }
+/* The link between two instances of the same node. Quiet by default — it crosses the whole canvas
+   and would otherwise be the loudest thing on it — and the point as soon as one end is selected. */
+.edge.mirrors { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 1 5; opacity: 0.3; }
+.edge.mirrors.active { stroke: var(--ink-2); stroke-width: 1.6; stroke-dasharray: 2 4; opacity: 0.95; }
+
+.node { cursor: pointer; }
+/* pointer-events must be forced: the site rect is fill:none, and an unpainted fill does not catch
+   clicks — only its 1px dashed border would, which makes the node practically unselectable. */
+.node rect { stroke-width: 1.5; pointer-events: all; }
+.node text { font-size: 12px; fill: var(--ink); dominant-baseline: middle; pointer-events: none; }
+.node .sub { font-size: 10.5px; fill: var(--ink-muted); }
+.node[data-type="list"] rect { fill: var(--sharepoint); fill-opacity: var(--tint); stroke: var(--sharepoint); }
+.node[data-type="table"] rect { fill: var(--dataverse); fill-opacity: var(--tint); stroke: var(--dataverse); stroke-dasharray: 4 3; }
+.node[data-type="flow"] rect { fill: var(--flow); fill-opacity: var(--tint); stroke: var(--flow); }
+.node[data-type="app"] rect { fill: var(--app); fill-opacity: var(--tint); stroke: var(--app); stroke-width: 2.5; }
+/* A site is SharePoint too, so it carries the teal — as an outline, because it is the container
+   its lists sit in rather than another item beside them. */
+.node[data-type="site"] rect { fill: none; stroke: var(--sharepoint); stroke-dasharray: 3 3; stroke-width: 1; }
+.node[data-type="site"] text { fill: var(--ink-muted); }
+.node.selected rect { stroke-width: 3; }
+/* A list whose GUID is not on its site. Red, inside the node, and never colour alone — the node is
+   also labelled with the environment variable that sets the GUID. */
+.broken-mark { fill: var(--critical); font-size: 15px; font-weight: 800; dominant-baseline: middle; pointer-events: none; }
+.node[data-type="list"].broken rect,
+.node[data-type="flow"].broken rect { stroke: var(--critical); stroke-dasharray: 5 2; }
+/* A shared node is drawn once per solution. The offset outline behind it says "there are more of
+   me"; selecting any copy raises all of them, so the set is findable without hunting. */
+.replica-ghost { fill-opacity: 0.05; opacity: 0.65; pointer-events: none; }
+.node.sibling rect { stroke-width: 2.5; }
+.node.sibling .replica-ghost { opacity: 1; }
+.node .flag { font-size: 12px; }
+
+/* Dimming has to out-specify the per-kind rules above (.edge.triggers is 0-2-0, a bare .dimmed is
+   0-1-0) — otherwise every coloured edge stays bright while only the plain ones fade. Same
+   specificity plus later position wins. */
+/*
+ * Zoomed out, the two most expensive things on the canvas show nothing worth showing:
+ *
+ *   · 514 text runs under 6px tall — shaped and rasterised for a smudge
+ *   · 1100 edges, which at this scale are a grey haze over the frames rather than a structure
+ *
+ * Both go below the zoom where they stop meaning anything. Dropping the edge LAYER rather than
+ * styling the edges takes their hit-testing with it: the browser no longer asks which of 1100 paths
+ * is under the pointer on every mouse move. What is left — the solution frames and the colour of
+ * each node — is exactly what is legible at this size anyway.
+ */
+body[data-detail="low"] .node text { display: none; }
+body[data-detail="low"] .edges { display: none; }
+
+/*
+ * The stand-in swaps with the text, so exactly one of the two is ever drawn.
+ *
+ * The selector has to out-specify `.node[data-type="list"] rect` and its siblings, which set a fill
+ * AND a stroke on every rect in the node — a plain `.label-stub` lost to them, so the bar came out
+ * in the technology colour with a border round it, indistinguishable from the box it sits on.
+ *
+ * Grey and translucent on purpose: it picks up enough of the fill underneath to belong to the node
+ * without competing with it, and it is the same grey in both themes.
+ */
+.node[data-type] rect.label-stub {
+  display: none;
+  fill: var(--ink-muted);
+  fill-opacity: 0.35;
+  stroke: none;
+  pointer-events: none;
+}
+body[data-detail="low"] .node[data-type] rect.label-stub { display: block; }
+
+.node.dimmed { opacity: 0.1; }
+.edge.dimmed { opacity: 0.04; }
+.dimmed { opacity: 0.12; }
+.hidden { display: none; }
+
+/* Too narrow to share: the legend drops to its own full-width line BELOW, so the controls keep the
+   top row and stay where the hand expects them. */
+@media (max-width: 1100px) {
+  .controls.legend { order: 3; flex: 1 1 100%; }
+}
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  #side { border-left: 0; border-top: 1px solid var(--hairline); max-height: 45vh; }
+}

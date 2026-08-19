@@ -1,0 +1,64 @@
+{
+  "name": "ppgraph",
+  "version": "0.1.0",
+  "description": "Builds a dependency graph of a Power Platform environment: which SharePoint list triggers which flow, what those flows write back, and which app uses what.",
+  "keywords": [
+    "power-platform",
+    "power-automate",
+    "power-apps",
+    "sharepoint",
+    "dataverse",
+    "graph",
+    "cli",
+    "mcp"
+  ],
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ayax0/ppgraph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ayax0/ppgraph/issues"
+  },
+  "homepage": "https://github.com/Ayax0/ppgraph#readme",
+  "type": "module",
+  "bin": {
+    "ppgraph": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "build": "pnpm run build:node && pnpm run build:viewer && pnpm run build:assets",
+    "build:node": "tsc -p tsconfig.json",
+    "build:viewer": "tsc -p tsconfig.viewer.json",
+    "build:assets": "node scripts/copy-assets.mjs",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.viewer.json --noEmit",
+    "start": "node dist/cli.js",
+    "prepack": "pnpm run clean && pnpm run build",
+    "test": "pnpm run build && node --test \"test/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.5.2",
+    "picocolors": "^1.1.1"
+  }
+}

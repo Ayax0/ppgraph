@@ -1,0 +1,6 @@
+# LF in the repository, on every platform. A shebang line ending in CRLF makes `bin/ppgraph.js`
+# unrunnable on Linux and macOS ("bad interpreter"), which is exactly the file a checkout runs.
+* text=auto eol=lf
+
+# Binary, never touched.
+*.png binary
