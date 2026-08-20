@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataHome } from './home.js';
+import { dropStoreKey, plaintextAllowed, PLAINTEXT_ENV, seal, storeKey, unseal, type Sealed } from './secret.js';
 import http from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { openExternal } from '../ui/open.js';
@@ -107,15 +108,33 @@ interface TokenFile {
   accounts: StoredAccount[];
 }
 
+/** What is actually on disk. v1 was the accounts in the clear; v2 seals them with the store key. */
+type StoredFile = TokenFile | ({ version: 2 } & Sealed);
+
 const storeDir = dataHome;
 const storeFile = (): string => path.join(storeDir(), 'tokens.json');
 
-/** A damaged file is treated exactly as a missing one: sign in again and overwrite. Never crash. */
+const isAccounts = (value: unknown): value is TokenFile =>
+  (value as TokenFile)?.version === 1 && Array.isArray((value as TokenFile).accounts);
+
+/**
+ * A damaged file is treated exactly as a missing one: sign in again and overwrite. Never crash.
+ *
+ * A v1 file still reads, so upgrading does not sign anyone out — the next write seals it. A v2
+ * file whose key has gone (keystore cleared, or the file copied to another machine) is unreadable
+ * by design, and that reads as "missing" too: one sign-in, not an error to explain.
+ */
 function readStore(): TokenFile {
   try {
-    const parsed = JSON.parse(fs.readFileSync(storeFile(), 'utf8')) as TokenFile;
-    if (parsed?.version === 1 && Array.isArray(parsed.accounts)) return parsed;
-  } catch { /* missing, unreadable or from another version */ }
+    const parsed = JSON.parse(fs.readFileSync(storeFile(), 'utf8')) as StoredFile;
+    if (isAccounts(parsed)) return parsed;
+    if (parsed?.version === 2) {
+      const key = storeKey(storeFile());
+      const opened = key ? unseal(parsed, key) : null;
+      const inner = opened ? (JSON.parse(opened) as TokenFile) : null;
+      if (isAccounts(inner)) return inner;
+    }
+  } catch { /* missing, unreadable, or sealed with a key we no longer hold */ }
   return { version: 1, accounts: [] };
 }
 
@@ -123,19 +142,44 @@ function readStore(): TokenFile {
  * Read-modify-write immediately before saving, so two runs at once merge instead of clobbering,
  * and tmp+rename so a killed process never leaves half a file behind.
  *
- * `mode: 0o600` is honoured on POSIX and is a no-op on Windows, where the protection is that
- * `%LOCALAPPDATA%` is ACL'd to the user — the same thing the Azure CLI's own cache relies on.
+ * **Encrypted, or not written at all.** Where no keystore answers — a Linux host with no desktop
+ * session, CI, an unsupported platform — persisting would leave a refresh token in the clear, and
+ * a refresh token is portable in a way an access token is not. So the default is to keep nothing
+ * and sign in again next run; `PPGRAPH_ALLOW_PLAINTEXT_TOKENS=1` is the informed way back.
+ *
+ * `mode: 0o600` still applies either way: honoured on POSIX, a no-op on Windows, where the
+ * protection is that `%LOCALAPPDATA%` is ACL'd to the user.
  */
 function writeStore(change: (file: TokenFile) => void): void {
   try {
     const file = readStore();
     change(file);
+
+    const key = storeKey(storeFile());
+    if (!key && !plaintextAllowed()) {
+      // Keep nothing rather than something misleading: a stale sealed file would keep failing to open.
+      fs.rmSync(storeFile(), { force: true });
+      warnUnprotected();
+      return;
+    }
+    const body: StoredFile = key ? { version: 2, ...seal(JSON.stringify(file), key) } : file;
+
     fs.mkdirSync(storeDir(), { recursive: true });
     const target = storeFile();
     const tmp = `${target}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
+    fs.writeFileSync(tmp, `${JSON.stringify(body, null, 2)}\n`, { mode: 0o600 });
     fs.renameSync(tmp, target);
   } catch { /* a token that cannot be saved only costs the next run a sign-in */ }
+}
+
+let warnedUnprotected = false;
+function warnUnprotected(): void {
+  if (warnedUnprotected) return;
+  warnedUnprotected = true;
+  settings.notice(
+    'No OS keystore on this host, so the sign-in was not saved — expect to sign in again next run. '
+    + `Set ${PLAINTEXT_ENV}=1 to store it unencrypted instead.`,
+  );
 }
 
 /** `--logout`. Returns what it removed so the CLI can say something true. */
@@ -150,6 +194,12 @@ export function forgetTokens(filter?: { tenantId?: string }): string[] {
       return !match;
     });
   });
+  // Signing out of everything leaves the key protecting nothing — take it with us, rather than
+  // leaving a credential behind in the OS keystore for a file that no longer exists.
+  if (readStore().accounts.length === 0) {
+    fs.rmSync(storeFile(), { force: true });
+    dropStoreKey(storeFile());
+  }
   return [...new Set(removed)];
 }
 

@@ -12,10 +12,15 @@ import path from 'node:path';
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ppgraph-auth-'));
 process.env['PPGRAPH_HOME'] = home;
 
-const { CLIENT, clientFor, scopeFor, claimsOf, forgetTokens, configureAuth } = await import('../dist/platform/auth.js');
+const { CLIENT, clientFor, scopeFor, claimsOf, forgetTokens, configureAuth, storedTenants } =
+  await import('../dist/platform/auth.js');
 
 const store = () => path.join(home, 'tokens.json');
 const write = (content) => fs.writeFileSync(store(), content);
+
+// What is left in the store, by account. Asked through the API because the file itself is sealed
+// wherever the host has a keystore — these tests are about behaviour, not about the format.
+const remaining = () => storedTenants().map((t) => t.upn).sort();
 
 test('SharePoint hosts go to the SharePoint client, everything else to the primary one', () => {
   for (const host of [
@@ -79,21 +84,25 @@ test('--logout removes everything, or only one tenant', () => {
   ];
   write(JSON.stringify({ version: 1, accounts }));
   assert.deepEqual(forgetTokens({ tenantId: 'T2' }), ['b@fabrikam (T2)']);
-  assert.equal(JSON.parse(fs.readFileSync(store(), 'utf8')).accounts.length, 1, 'the other tenant stays');
+  assert.deepEqual(remaining(), ['a@contoso'], 'the other tenant stays');
 
   write(JSON.stringify({ version: 1, accounts }));
   // A tenant given as a domain must find the entry keyed by its GUID.
   assert.deepEqual(forgetTokens({ tenantId: 'contoso.onmicrosoft.com' }), ['a@contoso (T1)']);
+  assert.deepEqual(remaining(), ['b@fabrikam']);
 
   write(JSON.stringify({ version: 1, accounts }));
   assert.equal(forgetTokens().length, 2, 'no filter clears the lot');
-  assert.equal(JSON.parse(fs.readFileSync(store(), 'utf8')).accounts.length, 0);
+  assert.deepEqual(remaining(), []);
+  assert.equal(fs.existsSync(store()), false, 'an empty store is removed, not left as an empty shell');
 });
 
 test('the store is written with owner-only permissions where the platform has them', { skip: process.platform === 'win32' }, () => {
-  write(JSON.stringify({ version: 1, accounts: [] }));
-  forgetTokens();
+  // Something must survive the write, or the store is removed instead of rewritten.
+  write(JSON.stringify({ version: 1, accounts: [{ tenantId: 'T1', aliases: [], clientId: CLIENT.primary.id, oid: 'o1', upn: 'a@contoso', refreshToken: 'r1', obtainedAt: 'x' }] }));
+  forgetTokens({ tenantId: 'no-such-tenant' });
   assert.equal(fs.statSync(store()).mode & 0o777, 0o600);
+  forgetTokens();
 });
 
 test('an unknown client id can be substituted, and routing follows it', () => {

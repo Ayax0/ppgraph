@@ -1,6 +1,6 @@
 {
   "name": "ppgraph",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Builds a dependency graph of a Power Platform environment: which SharePoint list triggers which flow, what those flows write back, and which app uses what.",
   "keywords": [
     "power-platform",
@@ -60,5 +60,8 @@
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
     "picocolors": "^1.1.1"
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "^1.3.0"
   }
 }

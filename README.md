@@ -195,12 +195,35 @@ Nothing is required — anything you leave out is discovered or asked for.
 ppgraph holds its own tokens — it does not use or affect any other tool's sign-in.
 
 A machine that has never run it against a tenant opens **up to two browser windows**: one for Power
-Platform, one for SharePoint. After that, none, until a token expires. Tokens live in
-`<user data dir>/ppgraph/tokens.json`, readable only by you.
+Platform, one for SharePoint. After that, none, until a token expires.
 
 Both sign-ins use Microsoft first-party applications that are already registered in every tenant, so
 **nothing has to be registered and no admin has to be involved**. A tenant that refuses the
 SharePoint one can supply its own through `--sharepoint-client-id`.
+
+### Where the tokens are kept
+
+Only **refresh tokens** are persisted, in `<user data dir>/ppgraph/tokens.json`; access tokens live
+in memory for the life of the process.
+
+**That file is encrypted.** The key is a 32-byte random value held in the operating system's own
+keystore — Credential Manager on Windows, Keychain on macOS, the Secret Service on Linux — and it
+never goes into the file. So the file on its own is useless: a copy, a backup, a synced folder or a
+stray archive carries no working credential off the machine. The key is scoped to the store's
+location, so a second `PPGRAPH_HOME` gets a second key and signing out of one leaves the other
+alone.
+
+What this does **not** protect against is code already running as you: it can ask the keystore for
+the key, exactly as it could with any other tool's cache. The guarantee is portability, not
+isolation.
+
+**Where no keystore answers** — a Linux host with no desktop session, a container, CI — nothing is
+written at all, and you sign in again next run. A refresh token is long-lived and works from
+anywhere, so leaving one in the clear is the worse trade. Set
+`PPGRAPH_ALLOW_PLAINTEXT_TOKENS=1` to accept that trade knowingly, or `PPGRAPH_NO_KEYSTORE=1` to
+ignore the keystore even where there is one.
+
+`--logout` removes the stored sign-in; when nothing is left, the key is deleted too.
 
 ---
 
@@ -211,6 +234,8 @@ SharePoint one can supply its own through `--sharepoint-client-id`.
 | `PPGRAPH_HOME` | where tokens and default report locations live |
 | `PPGRAPH_REPORTS` | the report template, same as `--reports` |
 | `PPGRAPH_NO_BROWSER` | never open a browser; the device-code sign-in still works |
+| `PPGRAPH_ALLOW_PLAINTEXT_TOKENS` | store tokens unencrypted where no OS keystore is available |
+| `PPGRAPH_NO_KEYSTORE` | ignore the OS keystore, as if this host had none |
 
 ---
 
