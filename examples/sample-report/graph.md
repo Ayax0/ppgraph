@@ -1,7 +1,7 @@
 # Environment graph — Contoso AG / Production
 
 > **Generated file.** Edits are lost on the next run.
-> Generated 2026-08-19 12:07. Rebuild with:
+> Generated 2026-08-20 16:33. Rebuild with:
 >
 > ```
 > node scripts/sample-report.mjs
