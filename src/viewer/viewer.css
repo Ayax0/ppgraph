@@ -712,6 +712,22 @@ body[data-detail="low"] .edge.mirrors.active {
   vector-effect: non-scaling-stroke;
 }
 
+/*
+ * An edge that cannot fire as things stand: one of its ends is a flow that is switched off.
+ *
+ * The KIND colour is kept and only the weight goes. The reader still has to see that this is a
+ * trigger and not a read — the fade answers a different question, not "what is this" but "is it
+ * happening". Dots rather than dashes because every dash pattern on this canvas already means a
+ * kind, and a dotted line is the one that reads as interrupted rather than as another category.
+ *
+ * Placed AFTER the per-kind rules on purpose. `.edge.dormant` is 0-2-0, the same as `.edge.reads`
+ * and every sibling above it, so only its position carries it — moving it up would leave the
+ * loudest edges, the triggers, drawn at full strength while nothing they point at can run.
+ * `body[data-moving] .edge` outranks it and drops the dots mid-drag with everything else, and
+ * `.edge.dimmed` further down still wins the opacity, so a search or a selection reads normally.
+ */
+.edge.dormant { stroke-dasharray: 1 5; stroke-linecap: round; opacity: 0.22; }
+
 /* While the view is being moved the dash patterns come off — see `markMoving` in viewer.ts for why.
    The second selector is not redundant: `.edge.mirrors.active` is three classes and would outrank a
    two-class rule, and those few edges are the LONGEST on the canvas — during a drag they were left
@@ -734,6 +750,20 @@ body[data-moving] .edge.mirrors.active { stroke-dasharray: none; }
    its lists sit in rather than another item beside them. */
 .node[data-type="site"] rect { fill: none; stroke: var(--sharepoint); stroke-dasharray: 3 3; stroke-width: 1; }
 .node[data-type="site"] text { fill: var(--ink-muted); }
+/*
+ * A flow that is switched off. HOLLOW, not greyed: grey is what `.dimmed` already says here, and a
+ * disabled flow is not less relevant — "this one is not running" is often the very thing the reader
+ * opened the report to find out.
+ *
+ * The fill carries it and the blue stroke stays, so the node still reads as a flow rather than as
+ * some fourth kind of box. Both survive `data-detail="low"`, which is the point: zoomed out the
+ * labels are gone and a badge would be a glyph too small to make out, but an empty pill among
+ * filled ones is legible at any size.
+ *
+ * `:not(.label-stub)` because the stand-in bar is a rect inside this same node and paints its own
+ * grey — without the exclusion this rule would strip it straight back out.
+ */
+.node[data-type="flow"].disabled rect:not(.label-stub) { fill: none; stroke-dasharray: 2 3; }
 .node.selected rect { stroke-width: 3; }
 /* A list whose GUID is not on its site. Red, inside the node, and never colour alone — the node is
    also labelled with the environment variable that sets the GUID. */

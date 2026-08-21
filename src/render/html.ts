@@ -162,6 +162,12 @@ function legendKey(t: Translator): string {
       ${node(t('uiFilterTables'), 'var(--dataverse)')}
       ${node(t('uiFilterFlows'), 'var(--flow)')}
       ${node(t('uiFilterApps'), 'var(--app)')}
+      ${/* A state rather than a type, so it goes LAST and does not interrupt the five that mirror
+           the filter menu. Last is also where the grid puts it under the entry it qualifies: this
+           list is two columns filled by row, so the sixth cell lands directly beneath the fourth —
+           "Cloud flows" with "Disabled flows" under it, in one column. Five entries left a cell
+           dangling; six fill three rows exactly. Move it and both of those stop being true. */ ''}
+      ${node(t('uiLegendDisabled'), 'var(--flow)', 'outline')}
     </ul>
     <ul>
       ${edge(t('uiEdgeTriggers'), 'trigger')}

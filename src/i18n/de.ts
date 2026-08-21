@@ -201,6 +201,9 @@ export const de = {
   uiFilterTables: 'Dataverse-Tabellen',
   uiFilterFlows: 'Cloud Flows',
   uiFilterApps: 'Canvas Apps',
+  // A state, not a type — it sits with the node key because that is where a reader decodes what
+  // they are looking at, and a hollow flow is the one shape on the canvas nothing else explains.
+  uiLegendDisabled: 'Deaktivierte Flows',
   uiEdgeTriggers: 'Trigger',
   uiEdgeWrites: 'Schreibzugriff',
   uiEdgeReads: 'Lesezugriff',

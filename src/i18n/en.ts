@@ -177,6 +177,7 @@ export const en: Messages = {
   uiFilterTables: 'Dataverse tables',
   uiFilterFlows: 'Cloud flows',
   uiFilterApps: 'Canvas apps',
+  uiLegendDisabled: 'Disabled flows',
   uiEdgeTriggers: 'trigger',
   uiEdgeWrites: 'write',
   uiEdgeReads: 'read',

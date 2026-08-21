@@ -236,8 +236,15 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
      */
     const broken = raw.resolved === false && (raw.type === 'list' || raw.type === 'flow');
     const label = (broken && raw.envVar) || raw.label || raw.id;
+    /*
+     * A flow that is switched off. Only flows carry a state, and only `disabled` is drawn:
+     * `unknown` is the collector saying it could not tell, and drawing that as off would be a claim
+     * the data does not support.
+     */
+    const off = raw.type === 'flow' && raw.state === 'disabled';
     const element = el<SVGGElement>('g', {
-      class: broken ? 'node broken' : 'node', 'data-type': raw.type, tabindex: '0', role: 'button',
+      class: ['node', broken ? 'broken' : '', off ? 'disabled' : ''].filter(Boolean).join(' '),
+      'data-type': raw.type, tabindex: '0', role: 'button',
     });
     // One height for every node — the routing bands are derived from it, so a shorter site node
     // would put its channel on a different line than its neighbours' and break the collapse.
@@ -295,6 +302,8 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
       ? t('uiOrphanBody')
       : t('uiUnresolvedBody', { listId: raw.listId ?? raw.label });
     title.textContent = `${typeLabel(raw.type)}: ${label}\n${group}`
+      // Only the exception is named. Enabled is what every other line here already assumes.
+      + (off ? `\n${t('stateDisabled')}` : '')
       + (broken ? `\n${why}` : '')
       + (copies > 1 ? `\n${t('uiSameInstanceIn', { count: copies })}` : '');
     element.append(title);
@@ -320,9 +329,32 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
 
   const edges: LayoutEdge[] = [];
 
+  /*
+   * Structural edges are never dormant. `contains` says a list sits on a site and MIRROR says two
+   * boxes are the same thing — neither is something a flow DOES, so neither stops when one stops.
+   */
+  const STRUCTURAL = new Set<ViewEdgeKind>(['contains', MIRROR]);
+
+  /**
+   * True when one end is a flow that is switched off, so nothing travels this edge as things stand.
+   *
+   * Either end counts, and that is the whole rule: a trigger into a dead flow never fires it, and a
+   * write out of one never happens. Marking only the node would leave the reader tracing a chain of
+   * live arrows through it — and zoomed out, where the labels are gone, the arrows are most of what
+   * there is to read.
+   *
+   * A drawing decision and nothing more. The cascade queries still count a disabled flow as a full
+   * link, because a flow that is off today can be on tomorrow and under-reporting a loop is the
+   * expensive error. What this says is "not right now", not "never".
+   */
+  const isDormant = (kind: ViewEdgeKind, a: LayoutNode, b: LayoutNode): boolean =>
+    !STRUCTURAL.has(kind)
+    && [a, b].some((node) => node.type === 'flow' && node.state === 'disabled');
+
   function connect(base: Omit<GraphEdge, 'kind'>, kind: ViewEdgeKind,
     a: LayoutNode, b: LayoutNode, title: string): void {
-    const element = el<SVGPathElement>('path', { class: `edge ${kind}`, 'marker-end': marker(kind) });
+    const classes = isDormant(kind, a, b) ? `edge ${kind} dormant` : `edge ${kind}`;
+    const element = el<SVGPathElement>('path', { class: classes, 'marker-end': marker(kind) });
     const label = el<SVGTitleElement>('title');
     label.textContent = title;
     element.append(label);
@@ -1396,8 +1428,22 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
   const chip = (id: string, suffix = ''): string => {
     const node = byId.get(id) ?? primary(id);
     if (!node) return escapeHtml(id);
-    return `<button class="chip" data-goto="${escapeHtml(node.id)}">`
-      + `<span class="dot" style="background:${COLOR[node.type]}"></span>${escapeHtml(node.label)}`
+    /*
+     * A switched-off flow is hollow here too, the same way its node is hollow on the canvas. The
+     * panel is read straight after the diagram and usually about the very thing just clicked, so a
+     * second vocabulary for one fact would be a third thing to learn rather than a clearer one.
+     *
+     * The dot is 7px, which is small for a shape to carry a meaning on its own — hence the title as
+     * well. Every flow the panel names goes through here, so relations, cascades and self-triggers
+     * are all covered by the one change.
+     */
+    const off = node.type === 'flow' && node.state === 'disabled';
+    const paint = off
+      ? `box-shadow:inset 0 0 0 2px ${COLOR[node.type]}`
+      : `background:${COLOR[node.type]}`;
+    return `<button class="chip" data-goto="${escapeHtml(node.id)}"`
+      + `${off ? ` title="${escapeHtml(t('stateDisabled'))}"` : ''}>`
+      + `<span class="dot" style="${paint}"></span>${escapeHtml(node.label)}`
       + (suffix ? `<span class="verb">${escapeHtml(suffix)}</span>` : '')
       + '</button>';
   };
