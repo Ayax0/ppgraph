@@ -684,10 +684,26 @@ body[data-detail="low"] .group-headline { display: block; }
 .edge.uses { stroke: var(--app); stroke-dasharray: 1 4; stroke-linecap: round; stroke-width: 2; opacity: 0.75; }
 .edge.calls { stroke: var(--app); stroke-dasharray: 6 4; opacity: 0.8; }
 .edge.contains { stroke: var(--sharepoint); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.5; }
-/* The link between two instances of the same node. Quiet by default — it crosses the whole canvas
-   and would otherwise be the loudest thing on it — and the point as soon as one end is selected. */
-.edge.mirrors { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 1 5; opacity: 0.3; }
+/* The link between two instances of the same node. Drawn ONLY where it meets the selection.
+ *
+ * It used to be drawn always and faintly, which read well and cost more than the whole rest of the
+ * diagram put together: a large report holds over a thousand of these, each crossing the canvas end
+ * to end, and a dashed path is rasterised as one quad per dash. Selecting one copy is the moment
+ * the question "is this the same list?" gets asked, so that is when the answer appears.
+ *
+ * Hiding the QUIET ones rather than letting the active one declare itself visible is deliberate:
+ * `.hidden` (one class) must keep winning over this rule, or the filter could no longer switch the
+ * relationship off. */
+.edge.mirrors:not(.active) { display: none; }
 .edge.mirrors.active { stroke: var(--ink-2); stroke-width: 1.6; stroke-dasharray: 2 4; opacity: 0.95; }
+
+/* While the view is being moved the dash patterns come off — see `markMoving` in viewer.ts for why.
+   The second selector is not redundant: `.edge.mirrors.active` is three classes and would outrank a
+   two-class rule, and those few edges are the LONGEST on the canvas — during a drag they were left
+   carrying every remaining dash on screen. Counted at k=1.4: 17 of them, 17,375 dashes, against 0
+   for all the rest put together. */
+body[data-moving] .edge,
+body[data-moving] .edge.mirrors.active { stroke-dasharray: none; }
 
 .node { cursor: pointer; }
 /* pointer-events must be forced: the site rect is fill:none, and an unpainted fill does not catch
