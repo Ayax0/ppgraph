@@ -696,6 +696,15 @@ body[data-detail="low"] .group-headline { display: block; }
  * relationship off. */
 .edge.mirrors:not(.active) { display: none; }
 .edge.mirrors.active { stroke: var(--ink-2); stroke-width: 1.6; stroke-dasharray: 2 4; opacity: 0.95; }
+/* Zoomed out it is the only edge still drawn, and at that scale BOTH halves of its styling stop
+   working: the gaps swallow a line whose dashes are a fifth of a pixel apart, and the stroke itself
+   scales with the view — 1.6 units at k=0.1 is 0.16 device pixels, a ghost. Solid, and pinned to
+   its width on SCREEN, it stays the thing it is there to be: a line you can follow from one frame
+   to the next. */
+body[data-detail="low"] .edge.mirrors.active {
+  stroke-dasharray: none;
+  vector-effect: non-scaling-stroke;
+}
 
 /* While the view is being moved the dash patterns come off — see `markMoving` in viewer.ts for why.
    The second selector is not redundant: `.edge.mirrors.active` is three classes and would outrank a
@@ -741,13 +750,18 @@ body[data-moving] .edge.mirrors.active { stroke-dasharray: none; }
  *   · 514 text runs under 6px tall — shaped and rasterised for a smudge
  *   · 1100 edges, which at this scale are a grey haze over the frames rather than a structure
  *
- * Both go below the zoom where they stop meaning anything. Dropping the edge LAYER rather than
- * styling the edges takes their hit-testing with it: the browser no longer asks which of 1100 paths
- * is under the pointer on every mouse move. What is left — the solution frames and the colour of
- * each node — is exactly what is legible at this size anyway.
+ * Both go below the zoom where they stop meaning anything. What is left — the solution frames and
+ * the colour of each node — is exactly what is legible at this size anyway.
+ *
+ * The links between copies of one node are the exception, and they are the reason this hides the
+ * edges rather than the LAYER they sit in: zoomed out is precisely where "which other solutions is
+ * this list in" can be answered at a glance, and the answer is a line drawn across frames that are
+ * finally all on screen at once. Only the handful the selection reveals is ever drawn, and a hidden
+ * child is not hit-tested either — so the pointer cost that dropping the whole layer used to avoid
+ * stays avoided.
  */
 body[data-detail="low"] .node text { display: none; }
-body[data-detail="low"] .edges { display: none; }
+body[data-detail="low"] .edge:not(.mirrors) { display: none; }
 
 /*
  * The stand-in swaps with the text, so exactly one of the two is ever drawn.

@@ -1,7 +1,7 @@
 # Cloud flows in detail — Contoso AG / Production
 
 > **Generated file.** Edits are lost on the next run.
-> Generated 2026-08-20 16:33. Overview: `graph.md`. Rebuild with:
+> Generated 2026-08-21 08:41. Overview: `graph.md`. Rebuild with:
 >
 > ```
 > node scripts/sample-report.mjs
