@@ -424,7 +424,13 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; 
  * diagram — the same name is one click away in the panel, and untruncated there.
  */
 #canvas { background: var(--surface); position: relative; min-width: 0; -webkit-user-select: none; user-select: none; }
-#canvas > #scene { width: 100%; height: 100%; display: block; cursor: grab; }
+/* `touch-action: none` is what makes the canvas the viewer own surface rather than the browser one.
+   Left at the default, a finger that comes down here is claimed for page scroll and pinch-zoom: the
+   whole report zooms, header and chrome and all, while the graph inside it stays exactly the size it
+   was — and the pointer stream the panning code listens to ends in `pointercancel` mid-drag. Declaring
+   it hands both gestures to the code below, which is where the zoom is meant to happen. The minimap
+   has said the same thing about itself since it was written. */
+#canvas > #scene { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 #canvas > #scene.dragging { cursor: grabbing; }
 
 /* Minimap. Draws the solution frames rather than the nodes: 500 rectangles at this size are a grey

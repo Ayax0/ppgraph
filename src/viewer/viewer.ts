@@ -983,8 +983,11 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
    * out. The pattern is what tells one kind of edge from another while READING a still picture;
    * mid-gesture nobody is reading it.
    *
-   * Tied to the GESTURE rather than to the view changing: the plain state is held from pointerdown
-   * to pointerup, so pausing mid-drag no longer flickers the dashes back in and straight out again.
+   * Tied to the GESTURE rather than to the view changing: the plain state is held from the moment a
+   * gesture starts MOVING until it ends, so pausing mid-drag no longer flickers the dashes back in
+   * and straight out again. From the move and not the press, because a press that never travels is
+   * a tap — and a tap that strips the dashes off eleven hundred edges and puts them straight back
+   * is two full restyles for a selection.
    * The wheel is the exception — it has no release to listen for — so it keeps a short trailing
    * timer instead. A view change with no gesture behind it, `fit()` after a filter, repaints once
    * and is left alone.
@@ -1120,21 +1123,31 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     applyView();
   }
 
-  let steering = false;
+  /*
+   * Steering is one pointer at a time, tracked by id rather than by a flag. A second finger landing
+   * on the map used to steer from wherever IT was — and the first finger lifting used to end a steer
+   * the other one was still doing.
+   */
+  let steerId: number | null = null;
   minimap.addEventListener('pointerdown', (event) => {
+    if (steerId !== null) return;
     event.preventDefault();
-    steering = true;
+    steerId = event.pointerId;
     minimap.setPointerCapture(event.pointerId);
     holdMoving(true);
     const point = worldAt(event.clientX, event.clientY);
     if (point) centreOn(point);
   });
   minimap.addEventListener('pointermove', (event) => {
-    if (!steering) return;
+    if (event.pointerId !== steerId) return;
     const point = worldAt(event.clientX, event.clientY);
     if (point) centreOn(point);
   });
-  const stopSteering = (): void => { steering = false; holdMoving(false); };
+  const stopSteering = (event: PointerEvent): void => {
+    if (event.pointerId !== steerId) return;
+    steerId = null;
+    holdMoving(false);
+  };
   minimap.addEventListener('pointerup', stopSteering);
   minimap.addEventListener('pointercancel', stopSteering);
 
@@ -1152,15 +1165,39 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     applyView();
   }
 
-  svg.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    const rect = svg.getBoundingClientRect();
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const next = Math.max(0.05, Math.min(4, view.k * Math.exp(-event.deltaY * 0.0016)));
+  /* The zoom clamps. The wheel and the pinch have to agree on them, so they are named once. */
+  const MIN_K = 0.05;
+  const MAX_K = 4;
+
+  /**
+   * Zoom about a point in canvas-local coordinates, keeping whatever sits under it in place.
+   *
+   * Deliberately does NOT repaint. A pinch changes the scale and the offset within one move, and
+   * drawing between the two shows the intermediate — so the caller says when the frame lands.
+   */
+  function zoomAt(px: number, py: number, wanted: number): void {
+    const next = Math.max(MIN_K, Math.min(MAX_K, wanted));
     view.x = px - (px - view.x) * (next / view.k);
     view.y = py - (py - view.y) * (next / view.k);
     view.k = next;
+  }
+
+  /*
+   * Repaints are coalesced into animation frames. A mouse reports movement far more often than the
+   * screen redraws — a 1000 Hz pointer against a 60 Hz display means sixteen full repaints of the
+   * whole scene for every frame anyone sees, and on a graph this size that is most of the lag. The
+   * view itself is written straight away; only the drawing waits.
+   */
+  let frame = 0;
+  function repaint(): void {
+    if (frame) return;
+    frame = requestAnimationFrame(() => { frame = 0; applyView(); });
+  }
+
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const box = svg.getBoundingClientRect();
+    zoomAt(event.clientX - box.left, event.clientY - box.top, view.k * Math.exp(-event.deltaY * 0.0016));
     coastMoving();
     applyView();
   }, { passive: false });
@@ -1170,21 +1207,30 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
    * space clears the selection — so a pan that ends over nothing would deselect what the reader
    * had just picked, and one that ends over a node would select it.
    *
-   * So the pointer's travel since it went down is measured, and anything past a few pixels counts
-   * as a drag. Registered in the CAPTURE phase so it sees every press regardless of what the press
+   * So the pointer travel since it went down is measured, and anything past a few pixels counts as
+   * a drag. Registered in the CAPTURE phase so it sees every press regardless of what the press
    * landed on, even if something below stops the event from bubbling.
+   *
+   * The threshold cannot be ONE number. Four pixels is a mouse, which sits still while the button
+   * goes down. A finger rolls across a dozen just pressing, so at four a tap came out as a drag and
+   * selected nothing — silently, with no gesture to blame, which is the worst way for it to fail.
    */
-  const CLICK_SLOP = 4;
+  const slopFor = (pointerType: string): number => (pointerType === 'mouse' ? 4 : 12);
+
   let pressedAt: Point | null = null;
+  let pressSlop = 4;
   let travelled = false;
 
   svg.addEventListener('pointerdown', (event) => {
+    // A second finger is a pinch, never a tap: whatever it lands on must not be selected by it.
+    if (!event.isPrimary) { travelled = true; return; }
     pressedAt = { x: event.clientX, y: event.clientY };
+    pressSlop = slopFor(event.pointerType);
     travelled = false;
   }, { capture: true });
   svg.addEventListener('pointermove', (event) => {
-    if (!pressedAt) return;
-    if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > CLICK_SLOP) travelled = true;
+    if (!pressedAt || !event.isPrimary) return;
+    if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > pressSlop) travelled = true;
   }, { capture: true });
 
   /** True when the click that is being handled ended a drag. Consumed, so it cannot go stale. */
@@ -1194,41 +1240,114 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     return value;
   };
 
-  let panning: Point | null = null;
-  svg.addEventListener('pointerdown', (event) => {
-    if ((event.target as Element).closest('.node')) return;
-    panning = { x: event.clientX - view.x, y: event.clientY - view.y };
-    svg.classList.add('dragging');
-    svg.setPointerCapture(event.pointerId);
-    holdMoving(true);
-  });
   /*
-   * Panning is coalesced into animation frames. A mouse reports movement far more often than the
-   * screen redraws — a 1000 Hz pointer against a 60 Hz display means sixteen full repaints of the
-   * whole scene for every frame anyone sees, and on a graph this size that is most of the lag.
+   * One finger pans, two pinch — the same gesture at two counts. A pinch reaches the page as two
+   * ordinary pointer streams, and nothing but the size of this map says which of the two is
+   * happening, so both are read out of it rather than answered by handlers that cannot see each
+   * other. Without it the second finger recomputed the pan anchor from where IT had landed and the
+   * graph jumped, and the first finger lifting ended a gesture the other one was still making.
    */
-  let queued: Point | null = null;
-  let frame = 0;
-  svg.addEventListener('pointermove', (event) => {
-    if (!panning) return;
-    queued = { x: event.clientX - panning.x, y: event.clientY - panning.y };
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      if (!queued) return;
-      view.x = queued.x;
-      view.y = queued.y;
-      applyView();
-    });
-  });
-  const endPan = (): void => {
-    panning = null;
-    queued = null;
-    svg.classList.remove('dragging');
-    holdMoving(false);
+  const fingers = new Map<number, Point>();
+  const spanOf = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
+  const midOf = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const bothFingers = (): [Point, Point] | null => {
+    const points = [...fingers.values()];
+    return points.length === 2 ? [points[0], points[1]] : null;
   };
-  svg.addEventListener('pointerup', endPan);
-  svg.addEventListener('pointercancel', endPan);
+
+  /** Where the view is dragged from, and the one pointer allowed to drag it. */
+  let panning: { id: number; x: number; y: number } | null = null;
+  /** Finger span and midpoint as of the previous move, and the box they are measured against. */
+  let pinching: { span: number; mid: Point; box: DOMRect } | null = null;
+
+  function beginPan(id: number, clientX: number, clientY: number): void {
+    panning = { id, x: clientX - view.x, y: clientY - view.y };
+    svg.classList.add('dragging');
+  }
+
+  /**
+   * Take the pinch reference span and midpoint from the two fingers that are down right now.
+   *
+   * Re-seeded on every change in the count, not only at the start. A third finger suspends the
+   * pinch — three fingers have no midpoint worth the name — and resuming from the span measured
+   * before it arrived would snap the zoom the moment it lifted.
+   */
+  function seedPinch(): void {
+    const two = bothFingers();
+    if (!two) return;
+    pinching = { span: spanOf(two[0], two[1]), mid: midOf(two[0], two[1]), box: svg.getBoundingClientRect() };
+  }
+
+  svg.addEventListener('pointerdown', (event) => {
+    fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (fingers.size === 2) {
+      // The pinch owns both pointers, and it has no click to lose by capturing them on the press.
+      for (const id of fingers.keys()) if (!svg.hasPointerCapture(id)) svg.setPointerCapture(id);
+      panning = null;
+      svg.classList.remove('dragging');
+      seedPinch();
+      holdMoving(true);
+      return;
+    }
+    if (fingers.size > 2) return;
+    // Starting on a node pans too. Node dragging is gone, so refusing the press there only meant
+    // that zoomed in — where the canvas is mostly node — the graph would barely move at all.
+    beginPan(event.pointerId, event.clientX, event.clientY);
+  });
+
+  svg.addEventListener('pointermove', (event) => {
+    if (!fingers.has(event.pointerId)) return;
+    fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pinching) {
+      const two = bothFingers();
+      if (!two) return;
+      const span = spanOf(two[0], two[1]);
+      const mid = midOf(two[0], two[1]);
+      if (span > 0 && pinching.span > 0) {
+        // Scale about the midpoint, then carry the midpoint own travel across as a pan: two
+        // fingers moving together push the graph around, which is what the hand expects of them.
+        zoomAt(mid.x - pinching.box.left, mid.y - pinching.box.top, view.k * (span / pinching.span));
+        view.x += mid.x - pinching.mid.x;
+        view.y += mid.y - pinching.mid.y;
+        repaint();
+      }
+      pinching.span = span;
+      pinching.mid = mid;
+      return;
+    }
+
+    if (!panning || event.pointerId !== panning.id || !travelled) return;
+    /*
+     * Capture is taken HERE, on the first move past the slop, rather than on the press. A captured
+     * pointer takes its compatibility `click` to the capture element with it, so capturing early
+     * would deliver every tap to the SVG and no node would ever be selectable. By the time a
+     * gesture has travelled far enough to need capture it has already stopped being a tap.
+     */
+    if (!svg.hasPointerCapture(event.pointerId)) svg.setPointerCapture(event.pointerId);
+    holdMoving(true);
+    view.x = event.clientX - panning.x;
+    view.y = event.clientY - panning.y;
+    repaint();
+  });
+
+  const endGesture = (event: PointerEvent): void => {
+    fingers.delete(event.pointerId);
+    if (pinching && fingers.size === 2) seedPinch();
+    if (pinching && fingers.size < 2) {
+      pinching = null;
+      // The finger still down carries on panning from where it is, rather than the graph sitting
+      // dead until it is lifted and put back down.
+      for (const [id, at] of fingers) beginPan(id, at.x, at.y);
+    }
+    if (panning && panning.id === event.pointerId) {
+      panning = null;
+      svg.classList.remove('dragging');
+    }
+    if (fingers.size === 0) holdMoving(false);
+  };
+  svg.addEventListener('pointerup', endGesture);
+  svg.addEventListener('pointercancel', endGesture);
   svg.addEventListener('click', (event) => {
     if (wasDrag()) return;
     if (!(event.target as Element).closest('.node')) select(null);
