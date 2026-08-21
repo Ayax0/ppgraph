@@ -10,13 +10,21 @@ import type { Translator } from '../i18n/index.js';
 import type { Graph } from '../types.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-/** dist/render/html.js → dist/viewer/… ; the assets are copied there by `pnpm build:assets`. */
-const viewerDir = path.join(here, '..', 'viewer');
+/**
+ * dist/render/html.js → dist/viewer/… ; the assets are copied there by `pnpm build:assets`, and
+ * in the published package that first candidate is the only one ever taken.
+ *
+ * Under `pnpm dev` this module is still the source file, so the first candidate becomes
+ * src/viewer/ — which holds the stylesheet (edit it, re-run, see it) but never viewer.js, the
+ * compiled browser half. That one is picked up from dist/ as a second try.
+ */
+const viewerDirs = [path.join(here, '..', 'viewer'), path.join(here, '..', '..', 'dist', 'viewer')];
 
 function readAsset(file: string): string {
-  const full = path.join(viewerDir, file);
-  if (!fs.existsSync(full)) {
-    throw new Error(`Viewer asset ${file} is missing (${full}). Has "pnpm build" been run?`);
+  const full = viewerDirs.map((dir) => path.join(dir, file)).find((candidate) => fs.existsSync(candidate));
+  if (full === undefined) {
+    const primary = path.join(viewerDirs[0], file);
+    throw new Error(`Viewer asset ${file} is missing (${primary}). Has "pnpm build" been run?`);
   }
   return fs.readFileSync(full, 'utf8');
 }

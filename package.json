@@ -50,6 +50,7 @@
     "clean": "node scripts/clean.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.viewer.json --noEmit",
     "start": "node dist/cli.js",
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --import ./scripts/dev-loader.mjs src/cli.ts",
     "prepack": "pnpm run clean && pnpm run build",
     "test": "pnpm run build && node --test \"test/**/*.test.mjs\""
   },
