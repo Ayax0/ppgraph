@@ -301,13 +301,12 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
 
     element.addEventListener('click', (event) => {
       event.stopPropagation();
-      // Nudging a node into place must not move the selection onto it.
+      // A pan that happens to end on a node must not move the selection onto it.
       if (!wasDrag()) select(node.id);
     });
     element.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(node.id); }
     });
-    attachDrag(element, node);
     nodeLayer.append(element);
     return node;
   }
@@ -385,8 +384,16 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
       key: 'data',
       types: ['list', 'table'],
       split: (node) => (node.type === 'table' ? '@dataverse' : node.siteId ?? '@nosite'),
+      /*
+       * `siteId` is a SOURCE id, so it has to be looked up through `primary`: a site that appears
+       * in several solutions is stored under a per-solution instance id and `byId` misses it. Left
+       * as a plain `byId` lookup, every list on a shared site was captioned "no site" — the same
+       * words as a list whose site is genuinely unknown, which reads as a resolution failure in
+       * the data rather than as the lookup bug it was.
+       */
       caption: (key) => (key === '@dataverse' ? t('uiDataverse')
-        : key === '@nosite' ? t('uiWithoutSite') : byId.get(key)?.label ?? t('uiWithoutSite')),
+        : key === '@nosite' ? t('uiWithoutSite')
+        : (byId.get(key) ?? primary(key))?.label ?? t('uiWithoutSite')),
     },
     { key: 'sites', types: ['site'] },
   ];
@@ -967,7 +974,36 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
   const DETAIL_FLOOR = 0.55;
   let detail = '';
 
+  /*
+   * While the view is moving, the dashed strokes come off (the stylesheet does it, keyed on
+   * `data-moving`).
+   *
+   * A dashed path is rasterised as one quad per dash, so its cost grows with the length of the path
+   * AND with the zoom — which is exactly why a big report drags at full detail and is fine zoomed
+   * out. The pattern is what tells one kind of edge from another while READING a still picture;
+   * during a drag nobody is reading it, and it is back a tenth of a second after letting go.
+   *
+   * Driven from applyView rather than from the pan handler, so it covers every way the view moves:
+   * wheel, drag, minimap, fit.
+   */
+  const SETTLE_MS = 120;
+  let moving = false;
+  let settle = 0;
+
+  function markMoving(): void {
+    if (!moving) {
+      moving = true;
+      document.body.dataset['moving'] = '';
+    }
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      moving = false;
+      delete document.body.dataset['moving'];
+    }, SETTLE_MS);
+  }
+
   const applyView = (): void => {
+    markMoving();
     scene.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.k})`);
     // One write per frame; the stylesheet divides by it so anything that should keep a constant
     // screen size can, without this code touching two dozen elements itself.
@@ -1110,12 +1146,12 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
 
   /*
    * A drag is not a click: letting go after a pan fires a `click` on the SVG, and a click on empty
-   * space clears the selection. The same applies to nudging a node, which would otherwise move the
-   * selection onto it.
+   * space clears the selection — so a pan that ends over nothing would deselect what the reader
+   * had just picked, and one that ends over a node would select it.
    *
    * So the pointer's travel since it went down is measured, and anything past a few pixels counts
-   * as a drag. Registered in the CAPTURE phase because a node's own pointerdown stops propagation —
-   * a bubble-phase listener here would never see a press that started on a node.
+   * as a drag. Registered in the CAPTURE phase so it sees every press regardless of what the press
+   * landed on, even if something below stops the event from bubbling.
    */
   const CLICK_SLOP = 4;
   let pressedAt: Point | null = null;
@@ -1174,28 +1210,6 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     if (wasDrag()) return;
     if (!(event.target as Element).closest('.node')) select(null);
   });
-
-  function attachDrag(group: SVGGElement, node: LayoutNode): void {
-    let dragging = false;
-    group.addEventListener('pointerdown', (event) => {
-      event.stopPropagation();
-      dragging = true;
-      group.setPointerCapture(event.pointerId);
-    });
-    group.addEventListener('pointermove', (event) => {
-      if (!dragging) return;
-      // Move only the node the user grabbed — re-running the layout would undo the clustering.
-      node.x += event.movementX / view.k;
-      node.y += event.movementY / view.k;
-      node.el.setAttribute('transform', `translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})`);
-      for (const edge of live.edges) {
-        if (edge.va === node || edge.vb === node) edge.el.setAttribute('d', path(edge));
-      }
-    });
-    const stop = (): void => { dragging = false; };
-    group.addEventListener('pointerup', stop);
-    group.addEventListener('pointercancel', stop);
-  }
 
   // ---------------------------------------------------------------- panel
   let selected: string | null = null;
