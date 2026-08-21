@@ -78,6 +78,14 @@ interface EntityDefinitionRow {
 }
 
 /**
+ * Dataverse counts a `$filter` by how deep the parsed expression nests and refuses at 100. An
+ * `or` chain is one condition per level, and every name here contributes two of them, so the ask
+ * goes out in batches: 25 names — 50 conditions — leaves room, one request per 25 tables is cheap,
+ * and an environment with 74 referenced tables no longer loses every portal link to one HTTP 400.
+ */
+const TABLE_BATCH = 25;
+
+/**
  * The id the maker portal addresses a table by.
  *
  * A table's logical name is what every other part of this tool works with, but
@@ -105,12 +113,16 @@ async function collectTableIds(
     // Asked BOTH ways round, and indexed both ways too. A flow definition names a table by its
     // entity SET name — `knowledgearticles` — while Dataverse filters on the logical name
     // `knowledgearticle`; matching only the latter found one table in six here.
-    const filter = [...wanted]
-      .map((name) => name.replace(/'/g, "''"))
-      .map((name) => `LogicalName eq '${name}' or EntitySetName eq '${name}'`)
-      .join(' or ');
-    const rows = await dvQuery<EntityDefinitionRow>(dataverse, token,
-      `EntityDefinitions?$select=LogicalName,EntitySetName,MetadataId&$filter=${encodeURIComponent(filter)}`);
+    const names = [...wanted].map((name) => name.replace(/'/g, "''"));
+    const batches: string[][] = [];
+    for (let at = 0; at < names.length; at += TABLE_BATCH) batches.push(names.slice(at, at + TABLE_BATCH));
+
+    const rows = (await pooled(batches, 4, (batch) => {
+      const filter = batch.map((name) => `LogicalName eq '${name}' or EntitySetName eq '${name}'`).join(' or ');
+      return dvQuery<EntityDefinitionRow>(dataverse, token,
+        `EntityDefinitions?$select=LogicalName,EntitySetName,MetadataId&$filter=${encodeURIComponent(filter)}`);
+    })).flat();
+
     for (const row of rows) {
       const table = { logicalName: row.LogicalName, metadataId: row.MetadataId };
       ids.set(row.LogicalName.toLowerCase(), table);
