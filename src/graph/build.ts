@@ -29,14 +29,17 @@ const ALL_WRITES: EdgeKind[] = ['creates', 'updates', 'deletes'];
  *
  * The two connectors differ in kind, so they are answered separately:
  *
- * - **Dataverse** registers a webhook per MESSAGE (Create / Update / Delete). No overlap: an update
- *   trigger hears updates and nothing else.
+ * - **Dataverse** registers a webhook per MESSAGE. A single-verb trigger hears that verb and
+ *   nothing else — but the connector also offers the combinations (created or updated, updated or
+ *   deleted, all three), and those hear each of their verbs. See `DV_MESSAGES` in
+ *   `platform/parse.ts` for the numbering, which is not the obvious one.
  * - **SharePoint** POLLS a column. "When an item is created" reads `Created`, so only inserts show
  *   up. The "modified" triggers read `Modified` — and a freshly created item carries one, so an
  *   insert reaches them too.
  *
  * An operation we could not classify keeps every verb: under-reporting a loop is the dangerous
- * error, over-reporting is only noise.
+ * error, over-reporting is only noise. That applies to Dataverse too — a message value we do not
+ * recognise must not silently end a cascade.
  */
 function refiredBy(trigger: FlowTrigger): EdgeKind[] {
   if (trigger.kind === 'dataverse') {
@@ -44,7 +47,11 @@ function refiredBy(trigger: FlowTrigger): EdgeKind[] {
       case 'create': return ['creates'];
       case 'update': return ['updates'];
       case 'delete': return ['deletes'];
-      default: return [];
+      case 'createOrUpdate': return ['creates', 'updates'];
+      case 'createOrDelete': return ['creates', 'deletes'];
+      case 'updateOrDelete': return ['updates', 'deletes'];
+      case 'anyChange': return ALL_WRITES;
+      default: return ALL_WRITES;
     }
   }
   switch (trigger.on) {

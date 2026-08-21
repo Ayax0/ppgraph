@@ -70,10 +70,44 @@ const DV_ACTIONS: Record<string, OperationVerb> = {
   PerformUnboundAction: 'other',
 };
 
+/**
+ * `subscriptionRequest/message` of the Dataverse trigger "When a row is added, modified or deleted".
+ *
+ * ⚠ The order is NOT create/update/delete — **2 is Delete and 3 is Update**, and 4-7 are the
+ * combinations. Getting this pair the wrong way round is the expensive mistake: `graph_impact`
+ * would answer "nothing happens when you write here" for a flow that fires on every update, which
+ * is exactly the question the tool exists to answer.
+ *
+ * Measured against a live environment (2026-08-21, 42 cloud flows):
+ * - Every flow with `message: 3`, `4` or `6` carries `filteringattributes`; no flow with
+ *   `message: 1` does. The connector only evaluates that list for updates, so 3, 4 and 6 must
+ *   each include Update.
+ * - A `message: 3` flow (`filteringattributes: ioz_workflow1`) ran five times in one day, and each
+ *   run read and updated the triggering row successfully. The Dataverse audit log for that table
+ *   records **zero** deletions that day and only Update entries in the trigger second.
+ *
+ * That pins 1 = Create and 3 = Update; 2 = Delete follows, since 1-3 are the three single verbs
+ * and 4-7 their combinations.
+ */
 const DV_MESSAGES: Record<number, MessageKey> = {
   1: 'trgRecordCreated',
-  2: 'trgRecordUpdated',
-  3: 'trgRecordDeleted',
+  2: 'trgRecordDeleted',
+  3: 'trgRecordUpdated',
+  4: 'trgRecordCreatedOrUpdated',
+  5: 'trgRecordCreatedOrDeleted',
+  6: 'trgRecordUpdatedOrDeleted',
+  7: 'trgRecordAnyChange',
+};
+
+/** The same table as a trigger class, so `refiredBy` can follow a cascade through it. */
+const DV_CLASSES: Record<number, TriggerClass> = {
+  1: 'create',
+  2: 'delete',
+  3: 'update',
+  4: 'createOrUpdate',
+  5: 'createOrDelete',
+  6: 'updateOrDelete',
+  7: 'anyChange',
 };
 
 // ---------------------------------------------------------------- the raw document
@@ -408,7 +442,7 @@ function describeTrigger(
       operationId: host?.operationId,
       label: DV_MESSAGES[message] ? msg(DV_MESSAGES[message]) : msg('trgRecordChanged'),
       table: typeof entity === 'string' && entity ? entity : null,
-      on: message === 1 ? 'create' : message === 2 ? 'update' : message === 3 ? 'delete' : 'unknown',
+      on: DV_CLASSES[message] ?? 'unknown',
     };
   }
 
