@@ -96,7 +96,7 @@ export async function resolveRun(options: ResolveOptions): Promise<RunConfig> {
     ?? (isInteractive() ? await askLocale(DEFAULT_LOCALE) : DEFAULT_LOCALE);
 
   // Last, so the answer the reader confirms to start the run is the one they will go looking in.
-  const suggestion = path.join('ppgraph', slug(chosen.name || chosen.environmentId));
+  const suggestion = path.join('.ppgraph', slug(chosen.name || chosen.environmentId));
   const outDir = options.out
     ? path.resolve(options.out)
     : path.resolve(isInteractive() ? await askOutDir(suggestion) : suggestion);

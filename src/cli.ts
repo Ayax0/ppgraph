@@ -62,7 +62,7 @@ ACCESS
 
 OUTPUT
   --out <path>                target directory, relative or absolute; asked for when omitted
-                              (suggestion: ./ppgraph/<environment>)
+                              (suggestion: ./.ppgraph/<environment>)
   ${`--locale <${LOCALES.join('|')}>`.padEnd(28)}language of graph.html; the .md/.json files are always English
                               (default: ${DEFAULT_LOCALE})
   --label <text>              name the report gives this tenant
