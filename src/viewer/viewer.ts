@@ -975,35 +975,54 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
   let detail = '';
 
   /*
-   * While the view is moving, the dashed strokes come off (the stylesheet does it, keyed on
+   * While the view is being moved the dashed strokes come off (the stylesheet does it, keyed on
    * `data-moving`).
    *
    * A dashed path is rasterised as one quad per dash, so its cost grows with the length of the path
    * AND with the zoom — which is exactly why a big report drags at full detail and is fine zoomed
    * out. The pattern is what tells one kind of edge from another while READING a still picture;
-   * during a drag nobody is reading it, and it is back a tenth of a second after letting go.
+   * mid-gesture nobody is reading it.
    *
-   * Driven from applyView rather than from the pan handler, so it covers every way the view moves:
-   * wheel, drag, minimap, fit.
+   * Tied to the GESTURE rather than to the view changing: the plain state is held from pointerdown
+   * to pointerup, so pausing mid-drag no longer flickers the dashes back in and straight out again.
+   * The wheel is the exception — it has no release to listen for — so it keeps a short trailing
+   * timer instead. A view change with no gesture behind it, `fit()` after a filter, repaints once
+   * and is left alone.
    */
   const SETTLE_MS = 120;
+  let held = false;
+  let coasting = 0;
   let moving = false;
-  let settle = 0;
 
-  function markMoving(): void {
-    if (!moving) {
-      moving = true;
-      document.body.dataset['moving'] = '';
+  function refreshMoving(): void {
+    const wanted = held || coasting !== 0;
+    if (wanted === moving) return;
+    moving = wanted;
+    if (moving) document.body.dataset['moving'] = '';
+    else delete document.body.dataset['moving'];
+  }
+
+  /** A gesture with a beginning and an end of its own: press, move, release. */
+  function holdMoving(on: boolean): void {
+    held = on;
+    if (on) {
+      clearTimeout(coasting);
+      coasting = 0;
     }
-    clearTimeout(settle);
-    settle = setTimeout(() => {
-      moving = false;
-      delete document.body.dataset['moving'];
+    refreshMoving();
+  }
+
+  /** A step that ends only by stopping — the wheel. */
+  function coastMoving(): void {
+    clearTimeout(coasting);
+    coasting = setTimeout(() => {
+      coasting = 0;
+      refreshMoving();
     }, SETTLE_MS);
+    refreshMoving();
   }
 
   const applyView = (): void => {
-    markMoving();
     scene.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.k})`);
     // One write per frame; the stylesheet divides by it so anything that should keep a constant
     // screen size can, without this code touching two dozen elements itself.
@@ -1106,6 +1125,7 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     event.preventDefault();
     steering = true;
     minimap.setPointerCapture(event.pointerId);
+    holdMoving(true);
     const point = worldAt(event.clientX, event.clientY);
     if (point) centreOn(point);
   });
@@ -1114,7 +1134,7 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     const point = worldAt(event.clientX, event.clientY);
     if (point) centreOn(point);
   });
-  const stopSteering = (): void => { steering = false; };
+  const stopSteering = (): void => { steering = false; holdMoving(false); };
   minimap.addEventListener('pointerup', stopSteering);
   minimap.addEventListener('pointercancel', stopSteering);
 
@@ -1141,6 +1161,7 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     view.x = px - (px - view.x) * (next / view.k);
     view.y = py - (py - view.y) * (next / view.k);
     view.k = next;
+    coastMoving();
     applyView();
   }, { passive: false });
 
@@ -1179,6 +1200,7 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     panning = { x: event.clientX - view.x, y: event.clientY - view.y };
     svg.classList.add('dragging');
     svg.setPointerCapture(event.pointerId);
+    holdMoving(true);
   });
   /*
    * Panning is coalesced into animation frames. A mouse reports movement far more often than the
@@ -1203,6 +1225,7 @@ import type { MessageKey, MessageParams, Messages } from '../i18n/messages.js';
     panning = null;
     queued = null;
     svg.classList.remove('dragging');
+    holdMoving(false);
   };
   svg.addEventListener('pointerup', endPan);
   svg.addEventListener('pointercancel', endPan);
