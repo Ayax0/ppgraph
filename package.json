@@ -1,6 +1,6 @@
 {
   "name": "ppgraph",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Builds a dependency graph of a Power Platform environment: which SharePoint list triggers which flow, what those flows write back, and which app uses what.",
   "keywords": [
     "power-platform",
