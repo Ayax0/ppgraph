@@ -23,7 +23,7 @@
   "homepage": "https://github.com/Ayax0/ppgraph#readme",
   "type": "module",
   "bin": {
-    "ppgraph": "dist/cli.js"
+    "ppgraph": "dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -49,8 +49,8 @@
     "build:assets": "node scripts/copy-assets.mjs",
     "clean": "node scripts/clean.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.viewer.json --noEmit",
-    "start": "node dist/cli.js",
-    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --import ./scripts/dev-loader.mjs src/cli.ts",
+    "start": "node dist/bin.js",
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --import ./scripts/dev-loader.mjs src/bin.ts",
     "prepack": "pnpm run clean && pnpm run build",
     "test": "pnpm run build && node --test \"test/**/*.test.mjs\""
   },

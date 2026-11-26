@@ -4,7 +4,7 @@
  * not committed. It exists for one reason: a missing build should say so in one line instead of
  * throwing ERR_MODULE_NOT_FOUND at somebody who has never seen this package before.
  *
- * The published package does not ship this file — `package.json#bin` points at `dist/cli.js`,
+ * The published package does not ship this file — `package.json#bin` points at `dist/bin.js`,
  * which is always present in the tarball.
  */
 import fs from 'node:fs';

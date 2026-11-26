@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-// ppgraph — builds the dependency graph of one Power Platform environment.
+// ppgraph — builds the dependency graph of one Power Platform environment. The binary is bin.ts.
 //
 // Language: three surfaces, one rule — whoever reads it decides.
 //   • the terminal — English, written literally in this file
@@ -7,7 +6,6 @@
 //   • graph.html — the maker's language, `--locale`
 // Collectors and builder record phrases rather than text, so `materialize` words one graph twice.
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listEnvironments } from './platform/environments.js';
 import { resolveRun } from './config/resolve.js';
 import { configureAuth, forgetTokens } from './platform/auth.js';
@@ -311,10 +309,5 @@ export function reportFatal(error: unknown): number {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`\n  ${style.fail(style.bold('Failed'))}  ${message}\n\n`);
   return 1;
-}
-
-// Run when invoked as a binary, stay quiet when imported.
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  runCli(process.argv.slice(2)).catch((error: unknown) => process.exit(reportFatal(error)));
 }
 
