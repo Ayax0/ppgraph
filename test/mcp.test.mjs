@@ -12,7 +12,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const entry = path.join(here, '..', 'dist', 'cli.js');
+const entry = path.join(here, '..', 'dist', 'bin.js');
 
 const { buildGraph } = await import('../dist/graph/build.js');
 const { materialize } = await import('../dist/graph/materialize.js');
